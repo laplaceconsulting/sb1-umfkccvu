@@ -1,0 +1,172 @@
+---
+import Layout from '../../../../layouts/Layout.astro';
+import { supabase } from '../../../../lib/supabase';
+
+const { id } = Astro.params;
+
+// Verificar se o usuário é admin
+const { data: { user } } = await supabase.auth.getUser();
+if (!user) {
+  return Astro.redirect('/login');
+}
+
+const { data: profile } = await supabase
+  .from('profiles')
+  .select('role')
+  .eq('id', user.id)
+  .single();
+
+if (profile?.role !== 'admin') {
+  return Astro.redirect('/');
+}
+
+// Buscar dados do módulo
+const { data: module } = await supabase
+  .from('modules')
+  .select('*')
+  .eq('id', id)
+  .single();
+
+if (!module) {
+  return Astro.redirect('/admin/modules');
+}
+
+let errorMessage = '';
+let successMessage = '';
+
+// Handle form submission
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    
+    // Extract and process Vimeo URL
+    let vimeoUrl = formData.get('vimeo_url')?.toString().trim();
+    if (vimeoUrl) {
+      // Try to extract the video ID from various Vimeo URL formats
+      const vimeoRegex = /(?:vimeo.com\/|player.vimeo.com\/video\/)(\d+)/i;
+      const match = vimeoUrl.match(vimeoRegex);
+      if (match && match[1]) {
+        vimeoUrl = `https://player.vimeo.com/video/${match[1]}`;
+      } else {
+        errorMessage = 'URL do Vimeo inválida. Por favor, insira uma URL válida do Vimeo.';
+        vimeoUrl = null;
+      }
+    }
+    
+    const moduleData = {
+      title: formData.get('title')?.toString().trim(),
+      description: formData.get('description')?.toString().trim() || null,
+      vimeo_url: vimeoUrl,
+      order_number: parseInt(formData.get('order_number')?.toString() || module.order_number.toString()),
+      updated_at: new Date().toISOString()
+    };
+
+    // Validação básica
+    if (!moduleData.title) {
+      errorMessage = 'O título é obrigatório';
+    } else if (!errorMessage) { // Only proceed if there's no error from Vimeo URL validation
+      const { error } = await supabase
+        .from('modules')
+        .update(moduleData)
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating module:', error);
+        errorMessage = 'Erro ao atualizar módulo. Por favor, tente novamente.';
+      } else {
+        return Astro.redirect('/admin/modules');
+      }
+    }
+  } catch (err) {
+    console.error('Error:', err);
+    errorMessage = 'Erro inesperado. Por favor, tente novamente.';
+  }
+}
+---
+
+<Layout title="Editar Módulo | Admin">
+  <main class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="mb-8">
+      <a href="/admin/modules" class="inline-flex items-center text-blue-600 hover:text-blue-800">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Voltar para Lista de Módulos
+      </a>
+    </div>
+
+    <div class="bg-white shadow-md rounded-lg">
+      <div class="px-4 py-5 sm:p-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-6">Editar Módulo</h1>
+
+        {errorMessage && (
+          <div class="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-md">
+            {errorMessage}
+          </div>
+        )}
+        
+        <form method="POST" class="space-y-6">
+          <input type="hidden" name="order_number" value={module.order_number} />
+          
+          <div>
+            <label for="title" class="block text-sm font-medium text-gray-700">
+              Título
+            </label>
+            <input
+              type="text"
+              name="title"
+              id="title"
+              required
+              value={module.title}
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label for="description" class="block text-sm font-medium text-gray-700">
+              Descrição
+            </label>
+            <textarea
+              name="description"
+              id="description"
+              rows="3"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            >{module.description}</textarea>
+          </div>
+
+          <div>
+            <label for="vimeo_url" class="block text-sm font-medium text-gray-700">
+              URL do Vimeo
+            </label>
+            <input
+              type="text"
+              name="vimeo_url"
+              id="vimeo_url"
+              value={module.vimeo_url}
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              placeholder="https://vimeo.com/123456789"
+            />
+            <p class="mt-1 text-sm text-gray-500">
+              Insira a URL do vídeo no Vimeo (ex: https://vimeo.com/123456789 ou https://player.vimeo.com/video/123456789)
+            </p>
+          </div>
+
+          <div class="flex justify-between">
+            <a
+              href="/admin/modules"
+              class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Cancelar
+            </a>
+            <button
+              type="submit"
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Salvar Alterações
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</Layout>

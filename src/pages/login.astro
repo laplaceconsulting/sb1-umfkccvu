@@ -1,0 +1,183 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { supabase } from '../lib/supabase';
+
+// Redirect if already logged in
+const { data: { session } } = await supabase.auth.getSession();
+if (session) {
+  return Astro.redirect('/');
+}
+
+let errorMessage = '';
+let successMessage = '';
+
+// Handle form submission
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const email = formData.get('email')?.toString();
+    const password = formData.get('password')?.toString();
+    const action = formData.get('action')?.toString();
+
+    if (!email || !password) {
+      errorMessage = 'Por favor, preencha todos os campos';
+    } else if (action === 'signup') {
+      // Sign up new user
+      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password
+      });
+
+      if (signUpError) {
+        console.error('Signup error:', signUpError);
+        if (signUpError.message.includes('User already registered')) {
+          errorMessage = 'Email já cadastrado';
+        } else {
+          errorMessage = 'Erro ao criar conta';
+        }
+      } else if (user) {
+        // Create profile with student role
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            role: 'student'
+          });
+
+        if (profileError) {
+          console.error('Profile creation error:', profileError);
+          errorMessage = 'Erro ao criar perfil';
+          await supabase.auth.signOut();
+        } else {
+          successMessage = 'Conta criada com sucesso! Você já pode fazer login.';
+        }
+      }
+    } else {
+      // Login existing user
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        console.error('Login error:', error);
+        if (error.message.includes('Invalid login credentials')) {
+          errorMessage = 'Email ou senha incorretos';
+        } else if (error.message.includes('Failed to fetch')) {
+          errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+        } else {
+          errorMessage = 'Erro ao fazer login';
+        }
+      } else if (!data.user) {
+        errorMessage = 'Usuário não encontrado';
+      } else {
+        // Check user role
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError) {
+          console.error('Profile error:', profileError);
+          errorMessage = 'Erro ao buscar perfil do usuário';
+          await supabase.auth.signOut();
+        } else {
+          // Redirect based on role
+          if (profile?.role === 'admin') {
+            return Astro.redirect('/admin/modules');
+          } else if (profile?.role === 'student') {
+            return Astro.redirect('/');
+          } else {
+            errorMessage = 'Perfil de usuário inválido';
+            await supabase.auth.signOut();
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Auth error:', err);
+    errorMessage = 'Erro inesperado. Por favor, tente novamente.';
+  }
+}
+---
+
+<Layout title="Login - FinStats">
+  <main class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full">
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">Login</h1>
+        <p class="mt-2 text-sm text-gray-600">
+          Entre para acessar o conteúdo do curso
+        </p>
+      </div>
+
+      <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <form method="POST" class="space-y-6">
+          <div>
+            <label for="email" class="block text-sm font-medium text-gray-700">
+              Email
+            </label>
+            <div class="mt-1">
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                required
+                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label for="password" class="block text-sm font-medium text-gray-700">
+              Senha
+            </label>
+            <div class="mt-1">
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              />
+            </div>
+          </div>
+
+          <div class="flex space-x-4">
+            <button
+              type="submit"
+              name="action"
+              value="login"
+              class="flex-1 flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Entrar
+            </button>
+            <button
+              type="submit"
+              name="action"
+              value="signup"
+              class="flex-1 flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Criar Conta
+            </button>
+          </div>
+
+          {errorMessage && (
+            <div class="mt-4 text-sm text-red-600 text-center">
+              {errorMessage}
+            </div>
+          )}
+
+          {successMessage && (
+            <div class="mt-4 text-sm text-green-600 text-center">
+              {successMessage}
+            </div>
+          )}
+        </form>
+      </div>
+    </div>
+  </main>
+</Layout>

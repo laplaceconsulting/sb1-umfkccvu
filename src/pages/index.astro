@@ -1,0 +1,35 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { supabase } from '../lib/supabase';
+
+// Buscar módulos do banco de dados
+const { data: modules } = await supabase
+  .from('modules')
+  .select('*')
+  .order('order_number');
+---
+
+<Layout title="FinStats - Estatística para Mercado Financeiro">
+	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+		<div class="text-center mb-12">
+			<h1 class="text-4xl font-bold text-gray-900 mb-4">
+				Estatística Aplicada ao Mercado Financeiro
+			</h1>
+			<p class="text-xl text-gray-600">
+				Um curso completo de estatística com Python para profissionais do mercado financeiro
+			</p>
+		</div>
+
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+			{modules?.map((module) => (
+				<a href={`/modules/${module.id}`} class="block">
+					<div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+						<h2 class="text-xl font-semibold text-gray-900 mb-2">{module.title}</h2>
+						<p class="text-gray-600 mb-4">{module.description}</p>
+						<p class="text-sm text-gray-500">Ordem: {module.order_number}</p>
+					</div>
+				</a>
+			))}
+		</div>
+	</main>
+</Layout>
