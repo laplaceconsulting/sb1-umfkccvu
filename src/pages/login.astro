@@ -14,10 +14,11 @@ let successMessage = '';
 // Handle form submission
 if (Astro.request.method === 'POST') {
   try {
-    const formData = await Astro.request.formData();
-    const email = formData.get('email')?.toString();
-    const password = formData.get('password')?.toString();
-    const action = formData.get('action')?.toString();
+    // Get raw body data since formData() is not working
+    const data = await Astro.request.json();
+    const email = data.email?.toString();
+    const password = data.password?.toString();
+    const action = data.action?.toString();
 
     if (!email || !password) {
       errorMessage = 'Por favor, preencha todos os campos';
@@ -86,11 +87,8 @@ if (Astro.request.method === 'POST') {
           // Redirect based on role
           if (profile?.role === 'admin') {
             return Astro.redirect('/admin/modules');
-          } else if (profile?.role === 'student') {
-            return Astro.redirect('/');
           } else {
-            errorMessage = 'Perfil de usuário inválido';
-            await supabase.auth.signOut();
+            return Astro.redirect('/');
           }
         }
       }
@@ -113,7 +111,7 @@ if (Astro.request.method === 'POST') {
       </div>
 
       <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-        <form method="POST" class="space-y-6">
+        <div id="loginForm" class="space-y-6">
           <div>
             <label for="email" class="block text-sm font-medium text-gray-700">
               Email
@@ -148,17 +146,15 @@ if (Astro.request.method === 'POST') {
 
           <div class="flex space-x-4">
             <button
-              type="submit"
-              name="action"
-              value="login"
+              type="button"
+              id="loginButton"
               class="flex-1 flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               Entrar
             </button>
             <button
-              type="submit"
-              name="action"
-              value="signup"
+              type="button"
+              id="signupButton"
               class="flex-1 flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               Criar Conta
@@ -176,8 +172,57 @@ if (Astro.request.method === 'POST') {
               {successMessage}
             </div>
           )}
-        </form>
+        </div>
       </div>
     </div>
   </main>
 </Layout>
+
+<script>
+  // Get form elements
+  const emailInput = document.getElementById('email');
+  const passwordInput = document.getElementById('password');
+  const loginButton = document.getElementById('loginButton');
+  const signupButton = document.getElementById('signupButton');
+
+  // Handle form submission
+  async function handleSubmit(action) {
+    const email = emailInput.value;
+    const password = passwordInput.value;
+
+    if (!email || !password) {
+      alert('Por favor, preencha todos os campos');
+      return;
+    }
+
+    try {
+      const response = await fetch(window.location.href, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, action })
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      // If response is a redirect, follow it
+      const contentType = response.headers.get('content-type');
+      if (response.redirected) {
+        window.location.href = response.url;
+      } else if (contentType && contentType.includes('text/html')) {
+        // If we got HTML back, refresh the page to show error/success messages
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Erro ao processar sua solicitação. Por favor, tente novamente.');
+    }
+  }
+
+  // Add event listeners
+  loginButton.addEventListener('click', () => handleSubmit('login'));
+  signupButton.addEventListener('click', () => handleSubmit('signup'));
+</script>
