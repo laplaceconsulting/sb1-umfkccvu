@@ -77,6 +77,6 @@ if (user) {
 	const logoutButton = document.getElementById('logoutButton');
 	logoutButton?.addEventListener('click', async () => {
 		await supabase.auth.signOut();
-		window.location.href = '/';
+		window.location.href = '/login';
 	});
 </script>
