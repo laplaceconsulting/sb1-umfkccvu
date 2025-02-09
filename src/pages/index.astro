@@ -9,6 +9,20 @@ const { data: modules } = await supabase
   .order('order_number');
 ---
 
+
+// Site information
+const siteInfo = {
+  title: "FinStats",
+  description: "Curso de Estatística Aplicada ao Mercado Financeiro",
+  url: "https://www.pythonparafinancas.dev.br/", // Substitua pelo seu domínio real
+  author: "Laplace Consulting, // Substitua pelo seu nome
+  social: {
+
+  }
+};
+---
+
+
 <Layout title="FinStats - Estatística para Mercado Financeiro">
 	<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 		<div class="text-center mb-12">
